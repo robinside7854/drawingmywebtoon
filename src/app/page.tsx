@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { AnalyzeResult } from "@/lib/claude";
 
 type Step = "input" | "analyzing" | "scenes" | "generating" | "result";
@@ -17,10 +18,18 @@ export default function Home() {
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null);
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loraUrl, setLoraUrl] = useState<string | null>(null);
+  const [triggerWord, setTriggerWord] = useState<string | null>(null);
 
   const styleFileRef = useRef<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // 저장된 LoRA 불러오기
+  useEffect(() => {
+    setLoraUrl(localStorage.getItem("dmc_lora_url"));
+    setTriggerWord(localStorage.getItem("dmc_trigger_word"));
+  }, []);
 
   // 화풍 이미지 선택
   const handleStyleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,6 +77,8 @@ export default function Home() {
       if (styleFileRef.current) {
         formData.append("styleImage", styleFileRef.current);
       }
+      if (loraUrl) formData.append("loraUrl", loraUrl);
+      if (triggerWord) formData.append("triggerWord", triggerWord);
 
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -140,9 +151,36 @@ export default function Home() {
     <main className="min-h-screen bg-amber-50 py-10 px-4">
       <div className="max-w-2xl mx-auto">
         {/* 헤더 */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-amber-900 mb-1">드로잉마이카툰</h1>
           <p className="text-amber-700 text-sm">당신의 하루가 한 편의 예술이 되는 곳 ✏️</p>
+        </div>
+
+        {/* LoRA 상태 + 학습 링크 */}
+        <div className="flex items-center justify-between mb-6">
+          {loraUrl ? (
+            <div className="flex items-center gap-2 bg-green-100 border border-green-300 rounded-xl px-3 py-2 text-xs text-green-700">
+              <span>✅ 학습된 화풍 적용 중</span>
+              <strong className="text-green-900">{triggerWord}</strong>
+              <button
+                onClick={() => {
+                  localStorage.removeItem("dmc_lora_url");
+                  localStorage.removeItem("dmc_trigger_word");
+                  setLoraUrl(null);
+                  setTriggerWord(null);
+                }}
+                className="text-green-500 hover:text-red-500 ml-1"
+              >✕</button>
+            </div>
+          ) : (
+            <div className="text-xs text-amber-500">화풍 미적용 (기본 스타일)</div>
+          )}
+          <Link
+            href="/train"
+            className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold rounded-xl px-3 py-2 transition"
+          >
+            🎓 화풍 학습하기
+          </Link>
         </div>
 
         {/* 에러 */}

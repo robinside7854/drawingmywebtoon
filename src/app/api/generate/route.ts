@@ -32,7 +32,11 @@ export async function POST(req: NextRequest) {
       negativePrompt = analysis.negativePrompt;
     }
 
-    const images = await generateAllImages(prompts, stylePrompt, negativePrompt);
+    // 학습된 LoRA 적용 (요청에서 전달받음)
+    const loraUrl = (formData.get("loraUrl") as string) || null;
+    const triggerWord = (formData.get("triggerWord") as string) || null;
+
+    const images = await generateAllImages(prompts, stylePrompt, negativePrompt, loraUrl, triggerWord);
     return NextResponse.json({ images });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
