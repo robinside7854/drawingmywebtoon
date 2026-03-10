@@ -35,34 +35,34 @@ ${diary}
       "index": 1,
       "label": "기",
       "summary": "장면 한 줄 설명 (한국어)",
-      "prompt": "image generation prompt in English, cartoon style, simple, 1:1 square, warm colors"
+      "prompt": "image generation prompt in English, single scene, 1:1 square"
     },
     {
       "index": 2,
       "label": "승",
       "summary": "장면 한 줄 설명 (한국어)",
-      "prompt": "image generation prompt in English, cartoon style, simple, 1:1 square, warm colors"
+      "prompt": "image generation prompt in English, single scene, 1:1 square"
     },
     {
       "index": 3,
       "label": "전",
       "summary": "장면 한 줄 설명 (한국어)",
-      "prompt": "image generation prompt in English, cartoon style, simple, 1:1 square, warm colors"
+      "prompt": "image generation prompt in English, single scene, 1:1 square"
     },
     {
       "index": 4,
       "label": "결",
       "summary": "장면 한 줄 설명 (한국어)",
-      "prompt": "image generation prompt in English, cartoon style, simple, 1:1 square, warm colors"
+      "prompt": "image generation prompt in English, single scene, 1:1 square"
     }
   ],
   "characterSeed": "주인공 외모 묘사 (영어, 예: young woman, casual clothes, short black hair)"
 }
 
 프롬프트 작성 규칙:
-- 4장면에서 동일한 캐릭터(characterSeed)가 등장해야 함
-- 각 장면의 분위기와 감정을 명확히 표현
-- "cartoon style, simple line art, warm colors" 를 모든 프롬프트에 포함`,
+- 반드시 한 장면에 하나의 이미지만 묘사 (네컷 레이아웃 금지)
+- 4장면에서 동일한 캐릭터(characterSeed)가 등장
+- 각 장면의 분위기와 감정을 명확히 표현`,
       },
     ],
   });
@@ -71,4 +71,41 @@ ${diary}
     message.content[0].type === "text" ? message.content[0].text : "";
   const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
   return JSON.parse(cleaned) as AnalyzeResult;
+}
+
+// 화풍 이미지를 Claude Vision으로 분석 → 그림체 설명 추출
+export async function analyzeStyle(base64Image: string, mimeType: string): Promise<string> {
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 256,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+              data: base64Image,
+            },
+          },
+          {
+            type: "text",
+            text: `이 이미지의 그림체(아트 스타일)를 영어로 설명해주세요.
+구도나 스토리 내용은 무시하고, 오직 다음만 추출하세요:
+- 선의 굵기와 스타일 (예: thick outlines, clean lines)
+- 색감 팔레트 (예: pastel colors, muted tones)
+- 캐릭터 디자인 특징 (예: round faces, big eyes, chibi style)
+- 전체적인 화풍 키워드
+
+한 줄로, 콤마 구분, 영어로만 응답하세요. 예시: "thick black outlines, pastel colors, chibi characters, round expressive faces, simple backgrounds"`,
+          },
+        ],
+      },
+    ],
+  });
+
+  const text = message.content[0].type === "text" ? message.content[0].text : "";
+  return text.trim();
 }

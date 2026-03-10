@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateAllImages } from "@/lib/fal";
+import { analyzeStyle } from "@/lib/claude";
 import { Scene } from "@/lib/claude";
 
-export const maxDuration = 120; // Vercel 함수 최대 120초
+export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,16 +22,16 @@ export async function POST(req: NextRequest) {
     const scenes: Scene[] = JSON.parse(scenesJson);
     const prompts = scenes.map((s) => s.prompt);
 
-    // 화풍 이미지 처리: File → base64 data URL
-    let styleImageUrl: string | null = null;
+    // 화풍 이미지 → Claude Vision으로 스타일 키워드 추출
+    let styleKeywords: string | null = null;
     if (styleFile && styleFile.size > 0) {
       const buffer = await styleFile.arrayBuffer();
       const base64 = Buffer.from(buffer).toString("base64");
-      styleImageUrl = `data:${styleFile.type};base64,${base64}`;
+      styleKeywords = await analyzeStyle(base64, styleFile.type || "image/jpeg");
     }
 
-    const images = await generateAllImages(prompts, styleImageUrl);
-    return NextResponse.json({ images });
+    const images = await generateAllImages(prompts, styleKeywords);
+    return NextResponse.json({ images, styleKeywords });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("[generate]", msg);

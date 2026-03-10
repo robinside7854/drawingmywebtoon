@@ -7,56 +7,30 @@ export interface GenerateResult {
   url: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function extractUrl(result: any): string | undefined {
-  // 가능한 응답 구조들을 모두 시도
-  return (
-    result?.images?.[0]?.url ||
-    result?.image?.url ||
-    result?.output?.images?.[0]?.url ||
-    result?.data?.images?.[0]?.url ||
-    result?.url
-  );
-}
-
 export async function generateImage(
   prompt: string,
-  styleImageUrl: string | null,
+  styleKeywords: string | null,
   index: number
 ): Promise<GenerateResult> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let result: any;
+  // 화풍 키워드를 프롬프트에 주입 (구도 복사 없이 스타일만 반영)
+  const fullPrompt = styleKeywords
+    ? `${prompt}, ${styleKeywords}, single panel only, no comic grid, no multiple panels`
+    : `${prompt}, cartoon style, simple line art, warm colors, single panel only`;
 
-  if (styleImageUrl) {
-    result = await fal.run("fal-ai/flux/dev/image-to-image", {
-      input: {
-        image_url: styleImageUrl,
-        prompt: prompt,
-        strength: 0.75,
-        num_inference_steps: 28,
-        guidance_scale: 3.5,
-        num_images: 1,
-        enable_safety_checker: false,
-      },
-    });
-  } else {
-    result = await fal.run("fal-ai/flux/schnell", {
-      input: {
-        prompt: prompt,
-        num_inference_steps: 4,
-        num_images: 1,
-        image_size: "square",
-        enable_safety_checker: false,
-      },
-    });
-  }
+  const result = await fal.run("fal-ai/flux/schnell", {
+    input: {
+      prompt: fullPrompt,
+      num_inference_steps: 4,
+      num_images: 1,
+      image_size: "square",
+      enable_safety_checker: false,
+    },
+  }) as { images?: { url: string }[] };
 
-  const url = extractUrl(result);
-
-  // URL을 못 찾으면 실제 응답 구조를 에러에 포함해 디버깅
+  const url = result?.images?.[0]?.url;
   if (!url) {
     throw new Error(
-      `이미지 URL 없음 (컷 ${index}) — 응답: ${JSON.stringify(result).slice(0, 300)}`
+      `이미지 URL 없음 (컷 ${index}) — 응답: ${JSON.stringify(result).slice(0, 200)}`
     );
   }
 
@@ -65,10 +39,10 @@ export async function generateImage(
 
 export async function generateAllImages(
   prompts: string[],
-  styleImageUrl: string | null
+  styleKeywords: string | null
 ): Promise<GenerateResult[]> {
   const results = await Promise.all(
-    prompts.map((prompt, i) => generateImage(prompt, styleImageUrl, i + 1))
+    prompts.map((prompt, i) => generateImage(prompt, styleKeywords, i + 1))
   );
   return results;
 }
