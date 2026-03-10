@@ -5,14 +5,18 @@ export interface GenerateResult {
 
 export async function generateImage(
   prompt: string,
-  styleKeywords: string | null,
+  stylePrompt: string | null,
+  negativePrompt: string | null,
   index: number
 ): Promise<GenerateResult> {
-  const fullPrompt = styleKeywords
-    ? `${prompt}, ${styleKeywords}, single panel only, no comic grid, no multiple panels`
-    : `${prompt}, cartoon style, simple line art, warm colors, single panel only`;
+  const fullPrompt = stylePrompt
+    ? `${prompt}, ${stylePrompt}`
+    : `${prompt}, cartoon style, simple line art, flat colors, single panel only`;
 
-  const response = await fetch("https://fal.run/fal-ai/flux/schnell", {
+  const negative = negativePrompt ||
+    "multiple panels, comic grid, 4-panel layout, photorealistic, text overlay";
+
+  const response = await fetch("https://fal.run/fal-ai/flux/dev", {
     method: "POST",
     headers: {
       "Authorization": `Key ${process.env.FAL_KEY}`,
@@ -20,9 +24,11 @@ export async function generateImage(
     },
     body: JSON.stringify({
       prompt: fullPrompt,
-      num_inference_steps: 4,
+      negative_prompt: negative,
+      num_inference_steps: 28,
+      guidance_scale: 3.5,
       num_images: 1,
-      image_size: "square",
+      image_size: "square_hd",
       enable_safety_checker: false,
     }),
   });
@@ -44,10 +50,11 @@ export async function generateImage(
 
 export async function generateAllImages(
   prompts: string[],
-  styleKeywords: string | null
+  stylePrompt: string | null,
+  negativePrompt: string | null,
 ): Promise<GenerateResult[]> {
   const results = await Promise.all(
-    prompts.map((prompt, i) => generateImage(prompt, styleKeywords, i + 1))
+    prompts.map((prompt, i) => generateImage(prompt, stylePrompt, negativePrompt, i + 1))
   );
   return results;
 }

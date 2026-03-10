@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateAllImages } from "@/lib/fal";
-import { analyzeStyle } from "@/lib/claude";
-import { Scene } from "@/lib/claude";
+import { analyzeStyle, Scene } from "@/lib/claude";
 
 export const maxDuration = 120;
 
@@ -22,16 +21,19 @@ export async function POST(req: NextRequest) {
     const scenes: Scene[] = JSON.parse(scenesJson);
     const prompts = scenes.map((s) => s.prompt);
 
-    // 화풍 이미지 → Claude Vision으로 스타일 키워드 추출
-    let styleKeywords: string | null = null;
+    // 화풍 이미지 → Claude Vision으로 스타일 + 네거티브 프롬프트 추출
+    let stylePrompt: string | null = null;
+    let negativePrompt: string | null = null;
     if (styleFile && styleFile.size > 0) {
       const buffer = await styleFile.arrayBuffer();
       const base64 = Buffer.from(buffer).toString("base64");
-      styleKeywords = await analyzeStyle(base64, styleFile.type || "image/jpeg");
+      const analysis = await analyzeStyle(base64, styleFile.type || "image/jpeg");
+      stylePrompt = analysis.stylePrompt;
+      negativePrompt = analysis.negativePrompt;
     }
 
-    const images = await generateAllImages(prompts, styleKeywords);
-    return NextResponse.json({ images, styleKeywords });
+    const images = await generateAllImages(prompts, stylePrompt, negativePrompt);
+    return NextResponse.json({ images });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("[generate]", msg);

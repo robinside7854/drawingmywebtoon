@@ -73,11 +73,16 @@ ${diary}
   return JSON.parse(cleaned) as AnalyzeResult;
 }
 
-// 화풍 이미지를 Claude Vision으로 분석 → 그림체 설명 추출
-export async function analyzeStyle(base64Image: string, mimeType: string): Promise<string> {
+export interface StyleAnalysis {
+  stylePrompt: string;   // 생성 프롬프트에 추가할 스타일 키워드
+  negativePrompt: string; // 제외할 요소
+}
+
+// 화풍 이미지를 Claude Vision으로 분석 → 스타일 + 네거티브 프롬프트 추출
+export async function analyzeStyle(base64Image: string, mimeType: string): Promise<StyleAnalysis> {
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 256,
+    max_tokens: 512,
     messages: [
       {
         role: "user",
@@ -92,20 +97,53 @@ export async function analyzeStyle(base64Image: string, mimeType: string): Promi
           },
           {
             type: "text",
-            text: `이 이미지의 그림체(아트 스타일)를 영어로 설명해주세요.
-구도나 스토리 내용은 무시하고, 오직 다음만 추출하세요:
-- 선의 굵기와 스타일 (예: thick outlines, clean lines)
-- 색감 팔레트 (예: pastel colors, muted tones)
-- 캐릭터 디자인 특징 (예: round faces, big eyes, chibi style)
-- 전체적인 화풍 키워드
+            text: `이 웹툰/만화 이미지를 분석해서 아래 JSON 형식으로만 응답하세요 (마크다운 없이):
 
-한 줄로, 콤마 구분, 영어로만 응답하세요. 예시: "thick black outlines, pastel colors, chibi characters, round expressive faces, simple backgrounds"`,
+{
+  "characterType": "캐릭터 종류 (예: cute animal characters, human characters, chibi humans)",
+  "artStyle": "선 스타일 (예: thick black outlines, clean vector lines, sketchy lines)",
+  "colorPalette": "색감 (예: flat colors, pastel palette, warm muted tones)",
+  "designFeatures": "특징적 디자인 (예: round heads, small noses, expressive eyes, simplified features)",
+  "negativeElements": "이 화풍에 없는 것들 (예: realistic proportions, detailed shading, photorealistic)"
+}
+
+분석 기준:
+- characterType: 가장 중요. 동물이면 반드시 animal로 명시
+- 사람이면 human으로 명시, 치비면 chibi로 명시
+- 구도나 스토리 내용은 완전히 무시하고 시각적 스타일만 분석`,
           },
         ],
       },
     ],
   });
 
-  const text = message.content[0].type === "text" ? message.content[0].text : "";
-  return text.trim();
+  const text = message.content[0].type === "text" ? message.content[0].text : "{}";
+  const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    const stylePrompt = [
+      parsed.characterType,
+      parsed.artStyle,
+      parsed.colorPalette,
+      parsed.designFeatures,
+      "single panel only, no comic grid",
+    ].filter(Boolean).join(", ");
+
+    const negativePrompt = [
+      parsed.negativeElements,
+      // 동물 캐릭터 화풍이면 사람 생성 방지
+      parsed.characterType?.toLowerCase().includes("animal")
+        ? "human face, realistic human, photorealistic"
+        : "",
+      "multiple panels, comic grid, 4-panel layout, text overlay, speech bubbles",
+    ].filter(Boolean).join(", ");
+
+    return { stylePrompt, negativePrompt };
+  } catch {
+    return {
+      stylePrompt: "cartoon style, simple line art, flat colors, single panel only",
+      negativePrompt: "multiple panels, comic grid, photorealistic",
+    };
+  }
 }
