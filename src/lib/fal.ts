@@ -1,7 +1,5 @@
 import { fal } from "@fal-ai/client";
 
-fal.config({ credentials: process.env.FAL_KEY });
-
 export interface GenerateResult {
   index: number;
   url: string;
@@ -12,6 +10,9 @@ export async function generateImage(
   styleKeywords: string | null,
   index: number
 ): Promise<GenerateResult> {
+  // 런타임에 credentials 설정 (Vercel 서버리스 환경에서 top-level 설정 미인식 이슈 방지)
+  fal.config({ credentials: process.env.FAL_KEY });
+
   // 화풍 키워드를 프롬프트에 주입 (구도 복사 없이 스타일만 반영)
   const fullPrompt = styleKeywords
     ? `${prompt}, ${styleKeywords}, single panel only, no comic grid, no multiple panels`
