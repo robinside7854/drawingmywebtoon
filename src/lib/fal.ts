@@ -1,5 +1,3 @@
-import { fal } from "@fal-ai/client";
-
 export interface GenerateResult {
   index: number;
   url: string;
@@ -10,29 +8,35 @@ export async function generateImage(
   styleKeywords: string | null,
   index: number
 ): Promise<GenerateResult> {
-  // 런타임에 credentials 설정 (Vercel 서버리스 환경에서 top-level 설정 미인식 이슈 방지)
-  fal.config({ credentials: process.env.FAL_KEY });
-
-  // 화풍 키워드를 프롬프트에 주입 (구도 복사 없이 스타일만 반영)
   const fullPrompt = styleKeywords
     ? `${prompt}, ${styleKeywords}, single panel only, no comic grid, no multiple panels`
     : `${prompt}, cartoon style, simple line art, warm colors, single panel only`;
 
-  const result = await fal.run("fal-ai/flux/schnell", {
-    input: {
+  const response = await fetch("https://fal.run/fal-ai/flux/schnell", {
+    method: "POST",
+    headers: {
+      "Authorization": `Key ${process.env.FAL_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
       prompt: fullPrompt,
       num_inference_steps: 4,
       num_images: 1,
       image_size: "square",
       enable_safety_checker: false,
-    },
-  }) as { images?: { url: string }[] };
+    }),
+  });
 
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Fal.ai ${response.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const result = await response.json() as { images?: { url: string }[] };
   const url = result?.images?.[0]?.url;
+
   if (!url) {
-    throw new Error(
-      `이미지 URL 없음 (컷 ${index}) — 응답: ${JSON.stringify(result).slice(0, 200)}`
-    );
+    throw new Error(`이미지 URL 없음 (컷 ${index}) — ${JSON.stringify(result).slice(0, 200)}`);
   }
 
   return { index, url };
