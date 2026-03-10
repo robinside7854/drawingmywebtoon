@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import JSZip from "jszip";
+import { fal } from "@fal-ai/client";
 
 export const maxDuration = 60;
 
@@ -8,6 +9,8 @@ export async function POST(req: NextRequest) {
     if (!process.env.FAL_KEY) {
       return NextResponse.json({ error: "FAL_KEY가 설정되지 않았습니다." }, { status: 500 });
     }
+
+    fal.config({ credentials: process.env.FAL_KEY });
 
     const formData = await req.formData();
     const triggerWord = (formData.get("triggerWord") as string) || "MYSTYLE";
@@ -26,22 +29,13 @@ export async function POST(req: NextRequest) {
     }
     const zipBuffer = await zip.generateAsync({ type: "arraybuffer" });
 
-    // Fal.ai 스토리지에 zip 업로드
-    const uploadForm = new FormData();
-    uploadForm.append("file", new Blob([zipBuffer], { type: "application/zip" }), "training_images.zip");
-
-    const uploadRes = await fetch("https://storage.fal.run/upload", {
-      method: "POST",
-      headers: { "Authorization": `Key ${process.env.FAL_KEY}` },
-      body: uploadForm,
-    });
-
-    if (!uploadRes.ok) {
-      const err = await uploadRes.text();
-      throw new Error(`스토리지 업로드 실패: ${uploadRes.status} — ${err.slice(0, 200)}`);
-    }
-
-    const { url: imagesDataUrl } = await uploadRes.json() as { url: string };
+    // SDK storage.upload으로 zip 업로드 (올바른 엔드포인트 자동 처리)
+    const zipFile = new File(
+      [new Blob([zipBuffer], { type: "application/zip" })],
+      "training_images.zip",
+      { type: "application/zip" }
+    );
+    const imagesDataUrl = await fal.storage.upload(zipFile);
 
     // LoRA 학습 큐 제출
     const trainRes = await fetch("https://queue.fal.run/fal-ai/flux-lora-fast-training", {
