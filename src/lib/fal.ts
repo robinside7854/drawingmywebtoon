@@ -1,4 +1,4 @@
-import * as fal from "@fal-ai/serverless-client";
+import { fal } from "@fal-ai/client";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -15,7 +15,7 @@ export async function generateImage(
   let result: { images?: { url: string }[] };
 
   if (styleImageUrl) {
-    // 화풍 이미지가 있을 때: IP-Adapter 사용
+    // 화풍 이미지가 있을 때: image-to-image 사용
     result = await fal.run("fal-ai/flux/dev/image-to-image", {
       input: {
         image_url: styleImageUrl,
@@ -24,7 +24,6 @@ export async function generateImage(
         num_inference_steps: 28,
         guidance_scale: 3.5,
         num_images: 1,
-        image_size: "square",
         enable_safety_checker: false,
       },
     }) as { images?: { url: string }[] };
@@ -51,7 +50,6 @@ export async function generateAllImages(
   prompts: string[],
   styleImageUrl: string | null
 ): Promise<GenerateResult[]> {
-  // 4장 병렬 생성
   const results = await Promise.all(
     prompts.map((prompt, i) => generateImage(prompt, styleImageUrl, i + 1))
   );
