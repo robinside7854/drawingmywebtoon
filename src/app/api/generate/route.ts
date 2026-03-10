@@ -14,6 +14,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "scenes 데이터가 없습니다." }, { status: 400 });
     }
 
+    if (!process.env.FAL_KEY) {
+      return NextResponse.json({ error: "FAL_KEY 환경변수가 설정되지 않았습니다." }, { status: 500 });
+    }
+
     const scenes: Scene[] = JSON.parse(scenesJson);
     const prompts = scenes.map((s) => s.prompt);
 
@@ -28,9 +32,10 @@ export async function POST(req: NextRequest) {
     const images = await generateAllImages(prompts, styleImageUrl);
     return NextResponse.json({ images });
   } catch (error) {
-    console.error("[generate]", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[generate]", msg);
     return NextResponse.json(
-      { error: "이미지 생성 중 오류가 발생했습니다." },
+      { error: `이미지 생성 오류: ${msg}` },
       { status: 500 }
     );
   }
